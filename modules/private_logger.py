@@ -3,6 +3,8 @@ import args_manager
 import modules.config
 import json
 import urllib.parse
+import piexif
+import piexif.helper
 
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
@@ -12,6 +14,14 @@ from modules.util import generate_temp_filename
 
 log_cache = {}
 
+def get_metadata(local_temp_filename, parsed_parameters, scheme):
+        image_info_data = ""
+        image_info_data += f"{parsed_parameters}\n"
+        image_info_data += f"{scheme}\n"
+        image_info_data = image_info_data.rstrip()
+        exif_dict = {"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(image_info_data, encoding='unicode')}}
+        exif_bytes = piexif.dump(exif_dict)
+        piexif.insert(exif_bytes, local_temp_filename)
 
 def get_current_html_path(output_format=None):
     output_format = output_format if output_format else modules.config.default_output_format
@@ -37,11 +47,18 @@ def log(img, metadata, metadata_parser: MetadataParser | None = None, output_for
             pnginfo.add_text('fooocus_scheme', metadata_parser.get_scheme().value)
         else:
             pnginfo = None
+        print(pnginfo)
         image.save(local_temp_filename, pnginfo=pnginfo)
     elif output_format == OutputFormat.JPEG.value:
-        image.save(local_temp_filename, quality=95, optimize=True, progressive=True, exif=get_exif(parsed_parameters, metadata_parser.get_scheme().value) if metadata_parser else Image.Exif())
+        #image.save(local_temp_filename, quality=95, optimize=True, progressive=True, exif=get_exif(parsed_parameters, metadata_parser.get_scheme().value) if metadata_parser else Image.Exif())
+        image.save(local_temp_filename, quality=95, optimize=True, progressive=True)
+        if metadata_parser:
+            get_metadata(local_temp_filename, parsed_parameters, metadata_parser.get_scheme().value)
     elif output_format == OutputFormat.WEBP.value:
-        image.save(local_temp_filename, quality=95, lossless=False, exif=get_exif(parsed_parameters, metadata_parser.get_scheme().value) if metadata_parser else Image.Exif())
+        #image.save(local_temp_filename, quality=95, lossless=False, exif=get_exif(parsed_parameters, metadata_parser.get_scheme().value) if metadata_parser else Image.Exif())
+        image.save(local_temp_filename, quality=95, lossless=False) # EXIF 정보 없이 먼저 저장
+        if metadata_parser:
+            get_metadata(local_temp_filename, parsed_parameters, metadata_parser.get_scheme().value)
     else:
         image.save(local_temp_filename)
 
